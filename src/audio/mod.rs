@@ -10,7 +10,7 @@ pub struct Device {
 }
 
 #[cfg(target_os = "windows")]
-pub use self::windows::{initialise, list_devices};
+pub use self::windows::{get_default_device_id, initialise, list_devices, set_default_device};
 
 #[cfg(target_os = "linux")]
-pub use self::linux::{initialise, list_devices};
+pub use self::linux::{get_default_device_id, initialise, list_devices, set_default_device};
