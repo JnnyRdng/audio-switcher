@@ -4,6 +4,7 @@ mod app;
 mod audio;
 mod settings;
 mod settings_window;
+mod toast;
 mod tray;
 
 fn main() {

@@ -71,13 +71,25 @@ pub fn handle_menu_event(state: &mut TrayState, event: &MenuEvent) -> bool {
     }
 
     // Otherwise it's a device ID.
-    if let Some(device) = state.devices.iter().find(|d| d.id == id) {
-        println!("Switching to: {} [{}]", device.name, device.id);
+    let device_name = state
+        .devices
+        .iter()
+        .find(|d| d.id == id)
+        .map(|d| d.name.clone());
+
+    if let Some(ref name) = device_name {
+        println!("Switching to: {name} [{id}]");
     }
 
     if let Err(e) = audio::set_default_device(id) {
-        eprintln!("Failed to switch device: {}", e);
+        eprintln!("Failed to switch device: {e}");
         return false;
+    }
+
+    // Show toast notification.
+    if let Some(name) = device_name {
+        let s = state.settings.lock().unwrap();
+        crate::toast::show(&name, &s);
     }
 
     // Rebuild the menu so the checkmark moves to the new default.
