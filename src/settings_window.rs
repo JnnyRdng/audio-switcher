@@ -1,9 +1,9 @@
-use strum::IntoEnumIterator;
 use crate::settings::{Settings, Theme, ToastPosition};
 use eframe::egui;
+use eframe::egui::IconData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use eframe::egui::IconData;
+use strum::IntoEnumIterator;
 
 static WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
 
@@ -71,11 +71,26 @@ pub fn run() {
 
 #[cfg(target_os = "windows")]
 fn centered_position(win_w: f32, win_h: f32) -> [f32; 2] {
-    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    };
     unsafe {
-        let screen_w = GetSystemMetrics(SM_CXSCREEN) as f32;
-        let screen_h = GetSystemMetrics(SM_CYSCREEN) as f32;
-        [(screen_w - 60.0 - win_w) / 2.0, (screen_h - win_h) / 2.0]
+        // SPI_GETWORKAREA returns the usable desktop rect (excludes taskbar).
+        let mut work = RECT::default();
+        let _ = SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            Some(&mut work as *mut RECT as *mut _),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+        );
+
+        let left = work.left as f32;
+        let top = work.top as f32;
+        let w = (work.right - work.left) as f32;
+        let h = (work.bottom - work.top) as f32;
+
+        [(left + w - win_w) / 2.0, (top + h - win_h) / 2.0]
     }
 }
 
@@ -145,10 +160,12 @@ fn render_ui(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.checkbox(&mut settings.show_toast, "Show toast on switch");
 
     if settings.show_toast {
-
         ui.checkbox(&mut settings.toast_fade, "Animate toast fade");
         add_spacer(ui);
-        ui.add(egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000).text("Toast duration (ms)"));
+        ui.add(
+            egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000)
+                .text("Toast duration (ms)"),
+        );
         add_spacer(ui);
         ui.add(egui::Slider::new(&mut settings.toast_opacity, 0.1..=1.0).text("Toast opacity"));
         add_spacer(ui);
@@ -180,7 +197,7 @@ fn bring_to_front() {
 #[cfg(target_os = "windows")]
 fn set_title_bar_dark(dark: bool) {
     use windows::Win32::Foundation::BOOL;
-    use windows::Win32::Graphics::Dwm::{DWMWINDOWATTRIBUTE, DwmSetWindowAttribute};
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWINDOWATTRIBUTE};
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     use windows::core::w;
 
@@ -199,7 +216,7 @@ fn set_title_bar_dark(dark: bool) {
 }
 
 fn load_icon() -> IconData {
-    let bytes= include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon.ico"));
+    let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon.ico"));
     let image = image::load_from_memory(bytes).unwrap().into_rgba8();
     let (width, height) = image.dimensions();
     IconData {
