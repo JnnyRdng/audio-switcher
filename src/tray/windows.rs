@@ -51,6 +51,21 @@ fn is_right_click(event: &TrayIconEvent) -> bool {
     )
 }
 
+pub fn play_switch_sound() {
+    use windows::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_MEMORY};
+    use windows::core::PCWSTR;
+
+    static WAV: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/ui-pop.wav"));
+
+    unsafe {
+        let _ = PlaySoundW(
+            PCWSTR(WAV.as_ptr() as *const u16),
+            None,
+            SND_MEMORY | SND_ASYNC,
+        );
+    }
+}
+
 /// Apply the dark/light theme to native context menus using undocumented uxtheme APIs.
 /// SetPreferredAppMode (ordinal 135) controls whether Win32 menus render in dark mode.
 /// FlushMenuThemes (ordinal 136) forces a repaint of cached menu visuals.

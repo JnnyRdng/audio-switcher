@@ -103,11 +103,19 @@ pub fn switch_to_device(state: &mut TrayState, device_id: &str) {
         return;
     }
 
+    let s = state.settings.lock().unwrap();
+
+    // Play switch sound.
+    if s.play_sound {
+        play_switch_sound();
+    }
+
     // Show toast notification.
     if let Some(name) = device_name {
-        let s = state.settings.lock().unwrap();
         crate::toast::show(&name, &s);
     }
+
+    drop(s);
 
     // Rebuild the menu so the checkmark moves to the new default.
     refresh_menu(state);
@@ -160,6 +168,13 @@ pub fn apply_current_theme(settings: &Settings) {
 fn apply_theme(settings: &Arc<Mutex<Settings>>) {
     let s = settings.lock().unwrap();
     apply_current_theme(&s);
+}
+
+fn play_switch_sound() {
+    #[cfg(target_os = "windows")]
+    windows::play_switch_sound();
+    #[cfg(target_os = "linux")]
+    {} // Future: ALSA or PulseAudio
 }
 
 fn load_icon() -> Icon {
