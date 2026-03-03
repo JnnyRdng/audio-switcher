@@ -26,9 +26,27 @@ pub fn open(settings: Arc<Mutex<Settings>>) {
 
     std::thread::spawn(move || {
         let exe = std::env::current_exe().expect("failed to get current exe path");
-        let _ = std::process::Command::new(exe).arg("--settings").status();
+        let mut child = std::process::Command::new(exe)
+            .arg("--settings")
+            .spawn()
+            .expect("failed to spawn settings window");
 
-        // Re-read settings after the window closes.
+        // Poll for settings changes while the window is open.
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => {}
+                Err(_) => break,
+            }
+
+            let new_settings = Settings::load();
+            crate::tray::apply_current_theme(&new_settings);
+            *settings.lock().unwrap() = new_settings;
+
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+
+        // Final re-read after the window closes.
         let new_settings = Settings::load();
         crate::tray::apply_current_theme(&new_settings);
         *settings.lock().unwrap() = new_settings;
