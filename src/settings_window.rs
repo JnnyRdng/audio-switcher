@@ -1,4 +1,6 @@
-use crate::settings::{Settings, Theme, ToastPosition};
+use crate::audio;
+use crate::audio::Device;
+use crate::settings::{Settings, Shortcut, Theme, ToastPosition};
 use eframe::egui;
 use eframe::egui::IconData;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -8,8 +10,8 @@ use strum::IntoEnumIterator;
 static WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
 
 const WINDOW_TITLE: &str = "Audio Switcher Settings";
-const WINDOW_W: f32 = 360.0;
-const WINDOW_H: f32 = 360.0;
+const WINDOW_W: f32 = 840.0;
+const WINDOW_H: f32 = 340.0;
 
 /// Open the settings window as a subprocess.
 /// Does nothing if a window is already open.
@@ -57,6 +59,8 @@ pub fn open(settings: Arc<Mutex<Settings>>) {
 
 /// Entry point for the settings subprocess (called with `--settings`).
 pub fn run() {
+    audio::initialise();
+    let devices = audio::list_devices();
     let settings = Settings::load();
     let is_dark = settings.is_dark();
     let center_pos = centered_position(WINDOW_W, WINDOW_H);
@@ -80,6 +84,8 @@ pub fn run() {
             }
             Ok(Box::new(SettingsApp {
                 settings,
+                devices,
+                capturing_device_id: None,
                 #[cfg(target_os = "windows")]
                 title_bar_set: false,
             }))
@@ -114,6 +120,9 @@ fn centered_position(win_w: f32, win_h: f32) -> [f32; 2] {
 
 struct SettingsApp {
     settings: Settings,
+    devices: Vec<Device>,
+    /// When set, the UI is listening for a key press to assign to this device ID.
+    capturing_device_id: Option<String>,
     #[cfg(target_os = "windows")]
     title_bar_set: bool,
 }
@@ -134,10 +143,66 @@ impl eframe::App for SettingsApp {
 
         let mut settings_updated = false;
 
+        // Handle key capture if active.
+        if let Some(ref device_id) = self.capturing_device_id.clone() {
+            for event in &ctx.input(|i| i.events.clone()) {
+                if let egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = event
+                {
+                    // Escape cancels capture.
+                    if *key == egui::Key::Escape {
+                        self.capturing_device_id = None;
+                        break;
+                    }
+
+                    // Require at least one modifier.
+                    if !modifiers.ctrl && !modifiers.alt && !modifiers.shift {
+                        continue;
+                    }
+
+                    let shortcut = Shortcut {
+                        ctrl: modifiers.ctrl,
+                        alt: modifiers.alt,
+                        shift: modifiers.shift,
+                        win_key: false,
+                        key: key.name().to_string(),
+                    };
+                    self.settings
+                        .shortcuts
+                        .insert(device_id.clone(), shortcut);
+                    self.capturing_device_id = None;
+                    self.settings.save();
+                    break;
+                }
+            }
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             let prev_settings = self.settings.clone();
+            let main_width = 500.0;
+            egui::SidePanel::left("LeftPanel")
+                .exact_width(main_width)
+                .show_inside(ui, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        render_shortcuts_ui(
+                            ui,
+                            &mut self.settings,
+                            &self.devices,
+                            &mut self.capturing_device_id,
+                        );
+                    });
+                });
 
-            render_ui(ui, &mut self.settings);
+            egui::SidePanel::right("RightPanel")
+                .resizable(false)
+                .exact_width(WINDOW_W as f32 - main_width)
+                .show_inside(ui, |ui| {
+                    render_controls_ui(ui, &mut self.settings);
+                });
 
             if self.settings.theme != prev_settings.theme {
                 settings_updated = true;
@@ -156,15 +221,19 @@ impl eframe::App for SettingsApp {
     }
 }
 
-fn render_ui(ui: &mut egui::Ui, settings: &mut Settings) {
+fn render_controls_ui(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.heading("Theme");
-
     add_spacer(ui);
 
-    ui.columns(3, |cols| {
-        cols[0].vertical(|col| col.radio_value(&mut settings.theme, Theme::System, "System"));
-        cols[1].vertical(|col| col.radio_value(&mut settings.theme, Theme::Dark, "Dark"));
-        cols[2].vertical(|col| col.radio_value(&mut settings.theme, Theme::Light, "Light"));
+    // ui.columns(3, |cols| {
+    //     cols[0].vertical(|col| col.radio_value(&mut settings.theme, Theme::System, "System"));
+    //     cols[1].vertical(|col| col.radio_value(&mut settings.theme, Theme::Dark, "Dark"));
+    //     cols[2].vertical(|col| col.radio_value(&mut settings.theme, Theme::Light, "Light"));
+    // });
+    ui.horizontal(|ui| {
+        for theme in Theme::iter() {
+        ui.selectable_value(&mut settings.theme, theme, theme.to_string());
+        }
     });
 
     add_spacer(ui);
@@ -172,9 +241,6 @@ fn render_ui(ui: &mut egui::Ui, settings: &mut Settings) {
     add_spacer(ui);
 
     ui.checkbox(&mut settings.play_sound, "Play sound on switch");
-    add_spacer(ui);
-    ui.separator();
-    add_spacer(ui);
     ui.checkbox(&mut settings.show_toast, "Show toast on switch");
 
     if settings.show_toast {
@@ -194,6 +260,90 @@ fn render_ui(ui: &mut egui::Ui, settings: &mut Settings) {
                     ui.selectable_value(&mut settings.toast_position, pos, pos.to_string());
                 }
             });
+    }
+}
+
+fn render_shortcuts_ui(
+    ui: &mut egui::Ui,
+    settings: &mut Settings,
+    devices: &[Device],
+    capturing_device_id: &mut Option<String>,
+) {
+    ui.heading("Keyboard Shortcuts");
+    add_spacer(ui);
+
+    if devices.is_empty() {
+        ui.label("No audio devices found.");
+        return;
+    }
+
+    // Check for duplicate shortcuts.
+    let mut seen = std::collections::HashMap::new();
+    let mut duplicates = std::collections::HashSet::new();
+    for (device_id, shortcut) in &settings.shortcuts {
+        let key = shortcut.to_string();
+        if let Some(prev_id) = seen.insert(key.clone(), device_id.clone()) {
+            duplicates.insert(prev_id);
+            duplicates.insert(device_id.clone());
+        }
+    }
+
+    egui::Grid::new("shortcuts_grid")
+        .num_columns(3)
+        .spacing([12.0, 8.0])
+        .striped(true)
+        .show(ui, |ui| {
+            ui.strong("Device");
+            ui.strong("Shortcut");
+            ui.strong("");
+            ui.end_row();
+
+            for device in devices {
+                ui.label(&device.name);
+
+                let is_capturing = capturing_device_id.as_ref() == Some(&device.id);
+                let is_duplicate = duplicates.contains(&device.id);
+
+                if is_capturing {
+                    ui.colored_label(egui::Color32::YELLOW, "Press shortcut...");
+                } else if let Some(shortcut) = settings.shortcuts.get(&device.id) {
+                    let text = shortcut.to_string();
+                    if is_duplicate {
+                        ui.colored_label(egui::Color32::RED, format!("{text} (duplicate)"));
+                    } else {
+                        ui.label(text);
+                    }
+                } else {
+                    ui.colored_label(egui::Color32::GRAY, "None");
+                }
+
+                ui.horizontal(|ui| {
+                    if is_capturing {
+                        if ui.button("Cancel").clicked() {
+                            *capturing_device_id = None;
+                        }
+                    } else {
+                        if ui.button("Assign").clicked() {
+                            *capturing_device_id = Some(device.id.clone());
+                        }
+                        if settings.shortcuts.contains_key(&device.id) {
+                            if ui.button("Clear").clicked() {
+                                settings.shortcuts.remove(&device.id);
+                            }
+                        }
+                    }
+                });
+
+                ui.end_row();
+            }
+        });
+
+    if !duplicates.is_empty() {
+        add_spacer(ui);
+        ui.colored_label(
+            egui::Color32::RED,
+            "Warning: duplicate shortcuts will only work for one device.",
+        );
     }
 }
 

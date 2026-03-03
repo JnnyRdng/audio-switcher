@@ -26,6 +26,11 @@ pub fn run_event_loop(state: &mut super::TrayState) {
 
         unsafe {
             if GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                // Handle global hotkeys before dispatching.
+                if let Some(device_id) = state.hotkey_manager.handle_hotkey(&msg) {
+                    super::switch_to_device(state, &device_id);
+                    continue;
+                }
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             } else {

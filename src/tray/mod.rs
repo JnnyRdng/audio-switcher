@@ -1,5 +1,6 @@
 use crate::audio;
 use crate::audio::Device;
+use crate::hotkey::HotkeyManager;
 use crate::settings::Settings;
 use crate::settings_window;
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,7 @@ pub struct TrayState {
     pub tray_icon: TrayIcon,
     pub devices: Vec<Device>,
     pub settings: Arc<Mutex<Settings>>,
+    pub hotkey_manager: HotkeyManager,
 }
 
 pub fn create(settings: Arc<Mutex<Settings>>) -> TrayState {
@@ -31,8 +33,13 @@ pub fn create(settings: Arc<Mutex<Settings>>) -> TrayState {
 
     let icon = load_icon();
     let devices = audio::list_devices();
+    let s = settings.lock().unwrap();
     let default_id = audio::get_default_device_id();
-    let menu = build_menu(&devices, default_id.as_deref());
+    let menu = build_menu(&devices, default_id.as_deref(), &s);
+
+    let mut hotkey_manager = HotkeyManager::new();
+    hotkey_manager.register_all(&s);
+    drop(s);
 
     let tray_icon = TrayIconBuilder::new()
         .with_tooltip("Audio Switcher")
@@ -45,6 +52,7 @@ pub fn create(settings: Arc<Mutex<Settings>>) -> TrayState {
         tray_icon,
         devices,
         settings,
+        hotkey_manager,
     }
 }
 
@@ -52,8 +60,11 @@ pub fn create(settings: Arc<Mutex<Settings>>) -> TrayState {
 pub fn refresh_menu(state: &mut TrayState) {
     apply_theme(&state.settings);
     state.devices = audio::list_devices();
+    let s = state.settings.lock().unwrap();
     let default_id = audio::get_default_device_id();
-    let menu = build_menu(&state.devices, default_id.as_deref());
+    let menu = build_menu(&state.devices, default_id.as_deref(), &s);
+    state.hotkey_manager.register_all(&s);
+    drop(s);
     state.tray_icon.set_menu(Some(Box::new(menu)));
 }
 
@@ -71,19 +82,25 @@ pub fn handle_menu_event(state: &mut TrayState, event: &MenuEvent) -> bool {
     }
 
     // Otherwise it's a device ID.
+    switch_to_device(state, id);
+    false
+}
+
+/// Switch to the device with the given ID, show toast, and refresh menu.
+pub fn switch_to_device(state: &mut TrayState, device_id: &str) {
     let device_name = state
         .devices
         .iter()
-        .find(|d| d.id == id)
+        .find(|d| d.id == device_id)
         .map(|d| d.name.clone());
 
     if let Some(ref name) = device_name {
-        println!("Switching to: {name} [{id}]");
+        println!("Switching to: {name} [{device_id}]");
     }
 
-    if let Err(e) = audio::set_default_device(id) {
+    if let Err(e) = audio::set_default_device(device_id) {
         eprintln!("Failed to switch device: {e}");
-        return false;
+        return;
     }
 
     // Show toast notification.
@@ -94,17 +111,21 @@ pub fn handle_menu_event(state: &mut TrayState, event: &MenuEvent) -> bool {
 
     // Rebuild the menu so the checkmark moves to the new default.
     refresh_menu(state);
-    false
 }
 
-fn build_menu(devices: &[Device], default_id: Option<&str>) -> Menu {
+fn build_menu(devices: &[Device], default_id: Option<&str>, settings: &Settings) -> Menu {
     let menu = Menu::new();
 
     for device in devices {
         let checked = default_id == Some(device.id.as_str());
+        let label = if let Some(shortcut) = settings.shortcuts.get(&device.id) {
+            format!("{}\t{}", device.name, shortcut)
+        } else {
+            device.name.clone()
+        };
         let _ = menu.append(&CheckMenuItem::with_id(
             MenuId::new(&device.id),
-            &device.name,
+            &label,
             true,
             checked,
             None::<Accelerator>,

@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::{fmt, fs};
 use std::path::PathBuf;
 use strum_macros::EnumIter;
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
 pub enum Theme {
-    System,
-    Dark,
     Light,
+    Dark,
+    System,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
@@ -18,6 +19,73 @@ pub enum ToastPosition {
     BottomLeft,
     BottomCenter,
     BottomRight,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+pub struct Shortcut {
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub win_key: bool,
+    pub key: String,
+}
+
+impl fmt::Display for Shortcut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
+        if self.ctrl {
+            parts.push("Ctrl".to_string());
+        }
+        if self.alt {
+            parts.push("Alt".to_string());
+        }
+        if self.shift {
+            parts.push("Shift".to_string());
+        }
+        if self.win_key {
+            parts.push("Win".to_string());
+        }
+        parts.push(display_key_name(&self.key));
+        write!(f, "{}", parts.join("+"))
+    }
+}
+
+impl fmt::Display for Theme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let str = match self {
+            Theme::System => "System",
+            Theme::Dark => "Dark",
+            Theme::Light => "Light",
+        };
+        write!(f, "{}", str)
+    }
+}
+
+/// Convert egui Key::name() strings to human-readable labels.
+fn display_key_name(key: &str) -> String {
+    match key {
+        "OpenBracket" => "[".to_string(),
+        "CloseBracket" => "]".to_string(),
+        "OpenCurlyBracket" => "{".to_string(),
+        "CloseCurlyBracket" => "}".to_string(),
+        "Backtick" => "`".to_string(),
+        "Backslash" => "\\".to_string(),
+        "Slash" => "/".to_string(),
+        "Semicolon" => ";".to_string(),
+        "Quote" => "'".to_string(),
+        "Comma" => ",".to_string(),
+        "Period" => ".".to_string(),
+        "Minus" => "-".to_string(),
+        "Plus" => "+".to_string(),
+        "Equals" => "=".to_string(),
+        "Colon" => ":".to_string(),
+        "Pipe" => "|".to_string(),
+        "Questionmark" => "?".to_string(),
+        "Exclamationmark" => "!".to_string(),
+        "PageUp" => "PgUp".to_string(),
+        "PageDown" => "PgDn".to_string(),
+        other => other.to_string(),
+    }
 }
 
 impl fmt::Display for ToastPosition {
@@ -43,6 +111,8 @@ pub struct Settings {
     pub toast_opacity: f32,
     pub theme: Theme,
     pub toast_position: ToastPosition,
+    #[serde(default)]
+    pub shortcuts: HashMap<String, Shortcut>,
 }
 
 impl Default for Settings {
@@ -54,7 +124,8 @@ impl Default for Settings {
             toast_duration_ms: 1000,
             toast_opacity: 0.75,
             theme: Theme::System,
-            toast_position: ToastPosition::BottomCenter
+            toast_position: ToastPosition::BottomCenter,
+            shortcuts: HashMap::new(),
         }
     }
 }

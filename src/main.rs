@@ -2,6 +2,7 @@
 
 mod app;
 mod audio;
+mod hotkey;
 mod settings;
 mod settings_window;
 mod toast;
