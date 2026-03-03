@@ -1,3 +1,4 @@
+use crate::settings::{Settings, Theme};
 use tray_icon::menu::MenuEvent;
 use tray_icon::TrayIconEvent;
 
@@ -43,4 +44,39 @@ fn is_right_click(event: &TrayIconEvent) -> bool {
             ..
         }
     )
+}
+
+/// Apply the dark/light theme to native context menus using undocumented uxtheme APIs.
+/// SetPreferredAppMode (ordinal 135) controls whether Win32 menus render in dark mode.
+/// FlushMenuThemes (ordinal 136) forces a repaint of cached menu visuals.
+pub fn apply_theme(settings: &Settings) {
+    use windows::core::{w, PCSTR};
+    use windows::Win32::System::LibraryLoader::{
+        GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
+    };
+
+    let mode: u32 = match settings.theme {
+        Theme::System => 1, // AllowDark — follows the OS preference
+        Theme::Dark => 2,   // ForceDark
+        Theme::Light => 3,  // ForceLight
+    };
+
+    unsafe {
+        let Ok(module) = LoadLibraryExW(w!("uxtheme.dll"), None, LOAD_LIBRARY_SEARCH_SYSTEM32)
+        else {
+            return;
+        };
+
+        // Ordinal 135: SetPreferredAppMode
+        if let Some(func) = GetProcAddress(module, PCSTR::from_raw(135usize as *const u8)) {
+            let set_mode: unsafe extern "system" fn(u32) -> u32 = std::mem::transmute(func);
+            set_mode(mode);
+        }
+
+        // Ordinal 136: FlushMenuThemes
+        if let Some(func) = GetProcAddress(module, PCSTR::from_raw(136usize as *const u8)) {
+            let flush: unsafe extern "system" fn() = std::mem::transmute(func);
+            flush();
+        }
+    }
 }
