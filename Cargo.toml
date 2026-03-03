@@ -3,12 +3,6 @@ name = "audio-switcher"
 version = "0.1.0"
 edition = "2024"
 
-# This prevents a console window from appearing on Windows when you run the app.
-# Comment this out while developing so you can see println! output.
-# [[bin]]
-# name = "audio-switcher"
-# path = "src/main.rs"
-
 [dependencies]
 tray-icon = "0.21.3"
 eframe = "0.33"
@@ -36,9 +30,3 @@ windows = { version = "0.58", features = [
     "Win32_System_LibraryLoader",
     "Win32_Graphics_Dwm",
 ] }
-
-
-# When you're ready to ship without a console window, uncomment this:
-# [profile.release]
-# [target.'cfg(windows)']
-# rustflags = ["-Clink-args=/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"]
