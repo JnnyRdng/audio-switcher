@@ -1,7 +1,7 @@
 use crate::audio::Device;
 use std::ffi::c_void;
 use windows::core::{GUID, HRESULT, Interface, PCWSTR};
-use windows::Win32::Devices::FunctionDiscovery::{PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName};
+use windows::Win32::Devices::FunctionDiscovery::{PKEY_Device_FriendlyName};
 use windows::Win32::Media::Audio::{
     eConsole, eRender, DEVICE_STATE_ACTIVE, IMMDeviceEnumerator, MMDeviceEnumerator,
 };
@@ -121,14 +121,10 @@ unsafe fn enumerate_devices() -> windows::core::Result<Vec<Device>> {
             let name_prop = store.GetValue(&PKEY_Device_FriendlyName)?;
             let name = name_prop.to_string();
 
-            let desc_prop = store.GetValue(&PKEY_Device_DeviceDesc)?;
-            let desc = desc_prop.to_string();
-
             let name = if name.is_empty() { id.clone() } else { name };
             devices.push(Device {
                 id,
                 name,
-                label: desc,
             })
         }
 

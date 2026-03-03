@@ -3,6 +3,7 @@ use crate::audio::Device;
 use crate::settings::{Settings, Shortcut, Theme, ToastPosition};
 use eframe::egui;
 use eframe::egui::IconData;
+use eframe::egui::style::HandleShape;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
@@ -97,7 +98,7 @@ pub fn run() {
 fn centered_position(win_w: f32, win_h: f32) -> [f32; 2] {
     use windows::Win32::Foundation::RECT;
     use windows::Win32::UI::WindowsAndMessaging::{
-        SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+        SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
     };
     unsafe {
         // SPI_GETWORKAREA returns the usable desktop rect (excludes taskbar).
@@ -171,9 +172,7 @@ impl eframe::App for SettingsApp {
                         win_key: false,
                         key: key.name().to_string(),
                     };
-                    self.settings
-                        .shortcuts
-                        .insert(device_id.clone(), shortcut);
+                    self.settings.shortcuts.insert(device_id.clone(), shortcut);
                     self.capturing_device_id = None;
                     self.settings.save();
                     break;
@@ -184,8 +183,7 @@ impl eframe::App for SettingsApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let prev_settings = self.settings.clone();
             let main_width = 500.0;
-            egui::SidePanel::left("LeftPanel")
-                .exact_width(main_width)
+            egui::CentralPanel::default()
                 .show_inside(ui, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         render_shortcuts_ui(
@@ -222,22 +220,14 @@ impl eframe::App for SettingsApp {
 }
 
 fn render_controls_ui(ui: &mut egui::Ui, settings: &mut Settings) {
-    ui.heading("Theme");
+    ui.heading("Appearance");
     add_spacer(ui);
-
-    // ui.columns(3, |cols| {
-    //     cols[0].vertical(|col| col.radio_value(&mut settings.theme, Theme::System, "System"));
-    //     cols[1].vertical(|col| col.radio_value(&mut settings.theme, Theme::Dark, "Dark"));
-    //     cols[2].vertical(|col| col.radio_value(&mut settings.theme, Theme::Light, "Light"));
-    // });
+    add_spacer(ui);
     ui.horizontal(|ui| {
         for theme in Theme::iter() {
-        ui.selectable_value(&mut settings.theme, theme, theme.to_string());
+            ui.selectable_value(&mut settings.theme, theme, theme.to_string());
         }
     });
-
-    add_spacer(ui);
-    ui.separator();
     add_spacer(ui);
 
     ui.checkbox(&mut settings.play_sound, "Play sound on switch");
@@ -246,13 +236,6 @@ fn render_controls_ui(ui: &mut egui::Ui, settings: &mut Settings) {
     if settings.show_toast {
         ui.checkbox(&mut settings.toast_fade, "Animate toast fade");
         add_spacer(ui);
-        ui.add(
-            egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000)
-                .text("Toast duration (ms)"),
-        );
-        add_spacer(ui);
-        ui.add(egui::Slider::new(&mut settings.toast_opacity, 0.1..=1.0).text("Toast opacity"));
-        add_spacer(ui);
         egui::ComboBox::from_label("Toast position")
             .selected_text(settings.toast_position.to_string())
             .show_ui(ui, |ui| {
@@ -260,6 +243,20 @@ fn render_controls_ui(ui: &mut egui::Ui, settings: &mut Settings) {
                     ui.selectable_value(&mut settings.toast_position, pos, pos.to_string());
                 }
             });
+        add_spacer(ui);
+        ui.add(
+            egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000)
+                .text("Toast duration (ms)")
+                .handle_shape(HandleShape::Circle)
+                .trailing_fill(true),
+        );
+        add_spacer(ui);
+        ui.add(
+            egui::Slider::new(&mut settings.toast_opacity, 0.1..=1.0)
+                .text("Toast opacity")
+                .handle_shape(HandleShape::Circle)
+                .trailing_fill(true),
+        );
     }
 }
 
@@ -270,6 +267,7 @@ fn render_shortcuts_ui(
     capturing_device_id: &mut Option<String>,
 ) {
     ui.heading("Keyboard Shortcuts");
+    add_spacer(ui);
     add_spacer(ui);
 
     if devices.is_empty() {
@@ -305,7 +303,12 @@ fn render_shortcuts_ui(
                 let is_duplicate = duplicates.contains(&device.id);
 
                 if is_capturing {
-                    ui.colored_label(egui::Color32::YELLOW, "Press shortcut...");
+                    let colour = if settings.is_dark() {
+                        egui::Color32::ORANGE
+                    } else {
+                        egui::Color32::BROWN
+                    };
+                    ui.colored_label(colour, "Press shortcut...");
                 } else if let Some(shortcut) = settings.shortcuts.get(&device.id) {
                     let text = shortcut.to_string();
                     if is_duplicate {
@@ -365,7 +368,7 @@ fn bring_to_front() {
 #[cfg(target_os = "windows")]
 fn set_title_bar_dark(dark: bool) {
     use windows::Win32::Foundation::BOOL;
-    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWINDOWATTRIBUTE};
+    use windows::Win32::Graphics::Dwm::{DWMWINDOWATTRIBUTE, DwmSetWindowAttribute};
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     use windows::core::w;
 

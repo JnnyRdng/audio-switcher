@@ -6,7 +6,6 @@ mod linux;
 pub struct Device {
     pub id: String,
     pub name: String,
-    pub label: String,
 }
 
 #[cfg(target_os = "windows")]
