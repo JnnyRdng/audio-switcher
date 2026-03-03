@@ -29,7 +29,7 @@ pub struct TrayState {
 pub fn create(settings: Arc<Mutex<Settings>>) -> TrayState {
     apply_theme(&settings);
 
-    let icon = create_placeholder_icon();
+    let icon = load_icon();
     let devices = audio::list_devices();
     let default_id = audio::get_default_device_id();
     let menu = build_menu(&devices, default_id.as_deref());
@@ -129,26 +129,9 @@ fn apply_theme(settings: &Arc<Mutex<Settings>>) {
     apply_current_theme(&s);
 }
 
-pub fn create_placeholder_icon() -> Icon {
-    let size = 32u32;
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    for y in 0..size {
-        for x in 0..size {
-            let dx = (x as f32 - 15.5).abs();
-            let dy = (y as f32 - 15.5).abs();
-            let dist = dx.max(dy);
-            if dist < 14.0 {
-                let t = dist / 14.0;
-                let r = (30.0 + t * 20.0) as u8;
-                let g = (180.0 - t * 40.0) as u8;
-                let b = (170.0 - t * 30.0) as u8;
-                rgba.extend_from_slice(&[r, g, b, 255]);
-            } else if dist < 15.0 {
-                rgba.extend_from_slice(&[20, 140, 130, 180]);
-            } else {
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-    Icon::from_rgba(rgba, size, size).expect("Failed to create icon")
+fn load_icon() -> Icon {
+    let bytes= include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon.ico"));
+    let image = image::load_from_memory(bytes).unwrap().into_rgba8();
+    let (width, height) = image.dimensions();
+    Icon::from_rgba(image.into_raw(), width, height).unwrap()
 }

@@ -45,6 +45,7 @@ pub fn run() {
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([WINDOW_W, WINDOW_H])
+            .with_icon(load_icon())
             .with_position(center_pos)
             .with_resizable(false),
         ..Default::default()
@@ -194,5 +195,16 @@ fn set_title_bar_dark(dark: bool) {
             &value as *const BOOL as *const std::ffi::c_void,
             std::mem::size_of::<BOOL>() as u32,
         );
+    }
+}
+
+fn load_icon() -> IconData {
+    let bytes= include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon.ico"));
+    let image = image::load_from_memory(bytes).unwrap().into_rgba8();
+    let (width, height) = image.dimensions();
+    IconData {
+        rgba: image.into_raw(),
+        width,
+        height,
     }
 }
