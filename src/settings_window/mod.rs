@@ -8,6 +8,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
 
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "linux")]
+mod linux;
+
 static WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
 
 const WINDOW_TITLE: &str = "Audio Switcher Settings";
@@ -23,7 +28,7 @@ pub fn open(settings: Arc<Mutex<Settings>>) {
     {
         // Already open — bring it to front.
         #[cfg(target_os = "windows")]
-        bring_to_front();
+        windows::bring_to_front();
         return;
     }
 
@@ -94,29 +99,11 @@ pub fn run() {
     );
 }
 
-#[cfg(target_os = "windows")]
 fn centered_position(win_w: f32, win_h: f32) -> [f32; 2] {
-    use windows::Win32::Foundation::RECT;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
-    };
-    unsafe {
-        // SPI_GETWORKAREA returns the usable desktop rect (excludes taskbar).
-        let mut work = RECT::default();
-        let _ = SystemParametersInfoW(
-            SPI_GETWORKAREA,
-            0,
-            Some(&mut work as *mut RECT as *mut _),
-            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
-        );
-
-        let left = work.left as f32;
-        let top = work.top as f32;
-        let w = (work.right - work.left) as f32;
-        let h = (work.bottom - work.top) as f32;
-
-        [(left + w - win_w) / 2.0, (top + h - win_h) / 2.0]
-    }
+    #[cfg(target_os = "windows")]
+    return windows::centered_position(win_w, win_h);
+    #[cfg(target_os = "linux")]
+    return linux::centered_position(win_w, win_h);
 }
 
 struct SettingsApp {
@@ -133,7 +120,7 @@ impl eframe::App for SettingsApp {
         #[cfg(target_os = "windows")]
         if !self.title_bar_set {
             self.title_bar_set = true;
-            set_title_bar_dark(self.settings.is_dark());
+            windows::set_title_bar_dark(self.settings.is_dark());
         }
 
         if self.settings.is_dark() {
@@ -183,17 +170,16 @@ impl eframe::App for SettingsApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let prev_settings = self.settings.clone();
             let main_width = 500.0;
-            egui::CentralPanel::default()
-                .show_inside(ui, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        render_shortcuts_ui(
-                            ui,
-                            &mut self.settings,
-                            &self.devices,
-                            &mut self.capturing_device_id,
-                        );
-                    });
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    render_shortcuts_ui(
+                        ui,
+                        &mut self.settings,
+                        &self.devices,
+                        &mut self.capturing_device_id,
+                    );
                 });
+            });
 
             egui::SidePanel::right("RightPanel")
                 .resizable(false)
@@ -206,7 +192,7 @@ impl eframe::App for SettingsApp {
                 settings_updated = true;
 
                 #[cfg(target_os = "windows")]
-                set_title_bar_dark(self.settings.is_dark());
+                windows::set_title_bar_dark(self.settings.is_dark());
             }
             if prev_settings != self.settings {
                 settings_updated = true;
@@ -233,7 +219,7 @@ fn render_controls_ui(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.checkbox(&mut settings.play_sound, "Play sound on switch");
     ui.checkbox(&mut settings.show_toast, "Show toast on switch");
 
-    if settings.show_toast {
+    if settings.show_toast && cfg!(target_os = "windows") {
         ui.checkbox(&mut settings.toast_fade, "Animate toast fade");
         add_spacer(ui);
         egui::ComboBox::from_label("Toast position")
@@ -352,38 +338,6 @@ fn render_shortcuts_ui(
 
 fn add_spacer(ui: &mut egui::Ui) {
     ui.add_space(12.0);
-}
-
-#[cfg(target_os = "windows")]
-fn bring_to_front() {
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SetForegroundWindow};
-    use windows::core::w;
-    unsafe {
-        if let Ok(hwnd) = FindWindowW(None, w!("Audio Switcher Settings")) {
-            let _ = SetForegroundWindow(hwnd);
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn set_title_bar_dark(dark: bool) {
-    use windows::Win32::Foundation::BOOL;
-    use windows::Win32::Graphics::Dwm::{DWMWINDOWATTRIBUTE, DwmSetWindowAttribute};
-    use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
-    use windows::core::w;
-
-    unsafe {
-        let Ok(hwnd) = FindWindowW(None, w!("Audio Switcher Settings")) else {
-            return;
-        };
-        let value = BOOL::from(dark);
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWINDOWATTRIBUTE(20),
-            &value as *const BOOL as *const std::ffi::c_void,
-            std::mem::size_of::<BOOL>() as u32,
-        );
-    }
 }
 
 fn load_icon() -> IconData {

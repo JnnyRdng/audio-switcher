@@ -174,7 +174,7 @@ fn play_switch_sound() {
     #[cfg(target_os = "windows")]
     windows::play_switch_sound();
     #[cfg(target_os = "linux")]
-    {} // Future: ALSA or PulseAudio
+    linux::play_switch_sound();
 }
 
 fn load_icon() -> Icon {
