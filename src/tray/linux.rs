@@ -26,6 +26,10 @@ pub fn run_event_loop(state: &mut super::TrayState) {
             super::switch_to_device(state, &device_id);
         }
 
+        if crate::settings_window::take_settings_changed() {
+            super::refresh_menu(state);
+        }
+
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }

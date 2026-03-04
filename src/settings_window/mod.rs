@@ -14,6 +14,13 @@ mod windows;
 mod linux;
 
 static WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
+static SETTINGS_CHANGED: AtomicBool = AtomicBool::new(false);
+
+/// Returns true (and clears the flag) if settings changed since the last call.
+/// Intended for the tray event loop to know when to re-register hotkeys.
+pub fn take_settings_changed() -> bool {
+    SETTINGS_CHANGED.swap(false, Ordering::SeqCst)
+}
 
 const WINDOW_TITLE: &str = "Audio Switcher Settings";
 const WINDOW_W: f32 = 840.0;
@@ -51,7 +58,12 @@ pub fn open(settings: Arc<Mutex<Settings>>) {
 
             let new_settings = Settings::load();
             crate::tray::apply_current_theme(&new_settings);
-            *settings.lock().unwrap() = new_settings;
+            let mut s = settings.lock().unwrap();
+            if *s != new_settings {
+                *s = new_settings;
+                SETTINGS_CHANGED.store(true, Ordering::SeqCst);
+            }
+            drop(s);
 
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
@@ -59,7 +71,12 @@ pub fn open(settings: Arc<Mutex<Settings>>) {
         // Final re-read after the window closes.
         let new_settings = Settings::load();
         crate::tray::apply_current_theme(&new_settings);
-        *settings.lock().unwrap() = new_settings;
+        let mut s = settings.lock().unwrap();
+        if *s != new_settings {
+            *s = new_settings;
+            SETTINGS_CHANGED.store(true, Ordering::SeqCst);
+        }
+        drop(s);
 
         WINDOW_OPEN.store(false, Ordering::SeqCst);
     });

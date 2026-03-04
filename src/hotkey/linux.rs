@@ -53,10 +53,7 @@ impl HotkeyManager {
                     self.registered.insert(hotkey.id(), (hotkey, device_id.clone()));
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Failed to register hotkey {} for device {}: {e}",
-                        shortcut, device_id
-                    );
+                    eprintln!("Failed to register hotkey {shortcut} for {device_id}: {e}");
                 }
             }
         }
@@ -181,15 +178,16 @@ fn key_name_to_code(key: &str) -> Option<Code> {
         "Right" => Some(ArrowRight),
         "Minus" => Some(Minus),
         "Plus" | "Equals" => Some(Equal),
-        "OpenBracket" => Some(BracketLeft),
-        "CloseBracket" => Some(BracketRight),
-        "Backslash" => Some(Backslash),
-        "Semicolon" => Some(Semicolon),
+        "OpenBracket" | "OpenCurlyBracket" => Some(BracketLeft),
+        "CloseBracket" | "CloseCurlyBracket" => Some(BracketRight),
+        "Backslash" | "Pipe" => Some(Backslash),
+        "Semicolon" | "Colon" => Some(Semicolon),
         "Quote" => Some(Quote),
         "Comma" => Some(Comma),
         "Period" => Some(Period),
-        "Slash" => Some(Slash),
+        "Slash" | "Questionmark" => Some(Slash),
         "Backtick" => Some(Backquote),
+        "Exclamationmark" => Some(Digit1),
         _ => None,
     }
 }
