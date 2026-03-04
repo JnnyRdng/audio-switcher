@@ -196,6 +196,13 @@ fn system_is_dark() -> bool {
 
 #[cfg(target_os = "linux")]
 fn system_is_dark() -> bool {
-    // Future: detect GTK/dbus dark preference.
-    false
+    // Query GNOME's color-scheme setting (GNOME 42+).
+    let Ok(output) = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+        .output()
+    else {
+        return false;
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout.contains("prefer-dark")
 }

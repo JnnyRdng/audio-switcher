@@ -29,6 +29,8 @@ pub fn open(settings: Arc<Mutex<Settings>>) {
         // Already open — bring it to front.
         #[cfg(target_os = "windows")]
         windows::bring_to_front();
+        #[cfg(target_os = "linux")]
+        linux::bring_to_front();
         return;
     }
 
