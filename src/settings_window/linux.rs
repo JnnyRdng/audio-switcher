@@ -1,3 +1,10 @@
+pub fn bring_to_front() {
+    // Best-effort: requires wmctrl to be installed.
+    let _ = std::process::Command::new("wmctrl")
+        .args(["-a", "Audio Switcher Settings"])
+        .spawn();
+}
+
 pub fn centered_position(win_w: f32, win_h: f32) -> [f32; 2] {
     if let Some((sw, sh)) = screen_size() {
         return [(sw - win_w) / 2.0, (sh - win_h) / 2.0];

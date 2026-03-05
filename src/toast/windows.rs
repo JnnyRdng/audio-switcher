@@ -1,8 +1,4 @@
 use crate::settings::ToastPosition;
-use crate::toast::{
-    FADE_DURATION_MS, FADE_TICK_MS, MARGIN, TIMER_FADE_IN, TIMER_FADE_OUT, TIMER_HOLD,
-    TOAST_HEIGHT, TOAST_WIDTH,
-};
 use std::sync::Mutex;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Dwm::{DWMWINDOWATTRIBUTE, DwmSetWindowAttribute};
@@ -12,6 +8,16 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{PCWSTR, w};
 
 const CLASS_NAME: &str = "AudioSwitcherToast";
+
+const TOAST_HEIGHT: i32 = 80;
+const TOAST_WIDTH: i32 = 350;
+const MARGIN: i32 = 20;
+const FADE_DURATION_MS: u32 = 200;
+const FADE_TICK_MS: u32 = 16;
+
+const TIMER_FADE_IN: usize = 1;
+const TIMER_HOLD: usize = 2;
+const TIMER_FADE_OUT: usize = 3;
 
 /// Track the current toast HWND so we can dismiss it when a new one appears.
 static CURRENT_TOAST: Mutex<Option<isize>> = Mutex::new(None);

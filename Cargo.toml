@@ -13,6 +13,10 @@ strum = "0.28.0"
 strum_macros = "0.28.0"
 image = "0.25.9"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+global-hotkey = "0.6"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "implement",
