@@ -238,31 +238,47 @@ fn render_controls_ui(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.checkbox(&mut settings.play_sound, "Play sound on switch");
     ui.checkbox(&mut settings.show_toast, "Show toast on switch");
 
-    if settings.show_toast && cfg!(target_os = "windows") {
-        ui.checkbox(&mut settings.toast_fade, "Animate toast fade");
-        add_spacer(ui);
-        egui::ComboBox::from_label("Toast position")
-            .selected_text(settings.toast_position.to_string())
-            .show_ui(ui, |ui| {
-                for pos in ToastPosition::iter() {
-                    ui.selectable_value(&mut settings.toast_position, pos, pos.to_string());
-                }
-            });
-        add_spacer(ui);
-        ui.add(
-            egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000)
-                .text("Toast duration (ms)")
-                .handle_shape(HandleShape::Circle)
-                .trailing_fill(true),
-        );
-        add_spacer(ui);
-        ui.add(
-            egui::Slider::new(&mut settings.toast_opacity, 0.1..=1.0)
-                .text("Toast opacity")
-                .handle_shape(HandleShape::Circle)
-                .trailing_fill(true),
-        );
+    if !settings.show_toast {
+        return;
     }
+
+    render_toast_options(ui, settings);
+}
+#[cfg(target_os = "linux")]
+fn render_toast_options(ui: &mut egui::Ui, settings: &mut Settings) {
+    ui.add(
+        egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000)
+            .text("Toast duration (ms)")
+            .handle_shape(HandleShape::Circle)
+            .trailing_fill(true),
+    );
+}
+#[cfg(target_os = "windows")]
+fn render_toast_options(ui: &mut egui::Ui, settings: &mut Settings) {
+    ui.checkbox(&mut settings.toast_fade, "Animate toast fade");
+    add_spacer(ui);
+    egui::ComboBox::from_label("Toast position")
+        .selected_text(settings.toast_position.to_string())
+        .show_ui(ui, |ui| {
+            for pos in ToastPosition::iter() {
+                ui.selectable_value(&mut settings.toast_position, pos, pos.to_string());
+            }
+        });
+    add_spacer(ui);
+    ui.add(
+        egui::Slider::new(&mut settings.toast_duration_ms, 500..=5000)
+            .text("Toast duration (ms)")
+            .handle_shape(HandleShape::Circle)
+            .trailing_fill(true),
+    );
+    add_spacer(ui);
+    ui.add(
+        egui::Slider::new(&mut settings.toast_opacity, 0.1..=1.0)
+            .text("Toast opacity")
+            .handle_shape(HandleShape::Circle)
+            .step_by(0.05)
+            .trailing_fill(true),
+    );
 }
 
 fn render_shortcuts_ui(
