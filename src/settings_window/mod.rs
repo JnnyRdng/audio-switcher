@@ -1,6 +1,8 @@
 use crate::audio;
 use crate::audio::Device;
-use crate::settings::{Settings, Shortcut, Theme, ToastPosition};
+use crate::settings::{Settings, Shortcut, Theme};
+#[cfg(target_os = "windows")]
+use crate::settings::ToastPosition;
 use eframe::egui;
 use eframe::egui::IconData;
 use eframe::egui::style::HandleShape;
