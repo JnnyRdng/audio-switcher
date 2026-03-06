@@ -7,8 +7,8 @@ use strum_macros::EnumIter;
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
 pub enum Theme {
     Light,
-    Dark,
     System,
+    Dark,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
