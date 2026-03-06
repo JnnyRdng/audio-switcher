@@ -24,6 +24,10 @@ pub fn run_event_loop(state: &mut super::TrayState) {
             }
         }
 
+        if crate::settings_window::take_settings_changed() {
+            super::refresh_menu(state);
+        }
+
         unsafe {
             if GetMessageW(&mut msg, None, 0, 0).as_bool() {
                 // Handle global hotkeys before dispatching.
